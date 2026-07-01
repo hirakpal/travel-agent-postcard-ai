@@ -38,7 +38,7 @@ elif st.session_state.page == 'app':
     
     with st.sidebar:
         st.header("Trip Configuration")
-        dest = st.text_input("Destination")
+        dest = st.text_input("Destination", key="destination_input")
         budget = st.slider("Budget Range (₹)", 10000, 500000, 50000)
         mode = st.selectbox("How are you reaching?", ["Flight", "Bus", "Driving"])
         
