@@ -4,3 +4,5 @@ streamlit
 pandas
 pydantic
 python-dotenv
+streamlit-authenticator
+pyyaml
