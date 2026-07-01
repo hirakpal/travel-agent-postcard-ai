@@ -30,14 +30,19 @@ def send_recovery_email(recipient, token):
         sender = st.secrets["EMAIL_USER"]
         password = st.secrets["EMAIL_PASS"]
     except KeyError:
-        st.error("Email service configuration missing. Add EMAIL_USER and EMAIL_PASS to Streamlit Secrets.")
+        st.error("Email service configuration missing.")
         return False
     
+    # Construct the reset URL using the current host
+    # We use a placeholder URL; in production, replace with your actual domain
+    reset_url = f"https://travel-agent-postcard-ai.streamlit.app/?token={token}"
+    
     msg = EmailMessage()
-    msg.set_content(f"Reset your password here: {st.request.host}/?token={token}")
+    msg.set_content(f"Reset your password here: {reset_url}")
     msg['Subject'] = 'Account Recovery'
     msg['From'] = sender
     msg['To'] = recipient
+    
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
         s.login(sender, password)
         s.send_message(msg)
