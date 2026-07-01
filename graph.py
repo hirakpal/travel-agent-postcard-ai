@@ -12,40 +12,41 @@ class AgentState(TypedDict):
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
+import json
+from langgraph.graph import StateGraph, END
+from langchain_core.messages import SystemMessage, HumanMessage
+
 def planning_node(state: AgentState):
+    # 1. Define the prompt
     system_prompt = SystemMessage(content="""
-    You are an expert AI Travel Concierge. 
-    Return ONLY a valid JSON object with a "combinations" key containing 4 plans.
-    Include 'name', 'days' (with 'day', 'plan', 'insight', 'transport', 'lat', 'lon'), 
-    and 'travel_logistics'.
+    You are an expert Travel Concierge. Return ONLY a valid JSON object:
+    {
+      "combinations": [{
+        "name": "Luxury Relaxed",
+        "days": [{"day": 1, "plan": "...", "insight": "...", "transport": "...", "lat": 0.0, "lon": 0.0}],
+        "travel_logistics": {"suggestion": "...", "estimated_cost": 0}
+      }]
+    }
     """)
     
-    # 1. Prepare the messages
+    # 2. Build the messages
     messages = [
         system_prompt, 
-        HumanMessage(content=f"Plan trip to: {state['itinerary']['destination']} with logistics: {state.get('logistics')}")
+        HumanMessage(content=f"Plan trip to: {state['itinerary'].get('destination')} with logistics: {state.get('logistics')}")
     ]
     
-    # 2. Invoke the LLM
+    # 3. Call the LLM
     response = llm.invoke(messages)
     
-    # 3. Parse the data (This creates the 'parsed_data' variable)
+    # 4. Parse the response (THIS defines parsed_data)
     try:
         clean_json = response.content.replace("```json", "").replace("```", "").strip()
         parsed_data = json.loads(clean_json)
-    except Exception as e:
-        # Fallback if JSON parsing fails
+    except Exception:
+        # Fallback if LLM fails
         parsed_data = {"combinations": []}
     
-    # 4. Return AFTER the variable is guaranteed to exist
-    return {"itinerary": parsed_data}
-    messages = [system_prompt, HumanMessage(content=f"Plan trip to: {state['itinerary'].get('destination')} with logistics: {state.get('logistics')}")]
-    
-    response = llm.invoke(messages)
-    try:
-        parsed_data = json.loads(response.content.replace("```json", "").replace("```", "").strip())
-    except:
-        parsed_data = {"combinations": []}
+    # 5. Return the result AFTER the variable is defined
     return {"itinerary": parsed_data}
 
 builder = StateGraph(AgentState)
