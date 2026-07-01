@@ -10,7 +10,7 @@ class AgentState(TypedDict):
 
 # Update your LLM initialization to include a retry strategy
 llm = ChatOpenAI(
-    model="gpt-4o", 
+    model="gpt-4o-mini", 
     temperature=0.7,
     max_retries=5  # This automatically retries on RateLimitError/API errors
 )
