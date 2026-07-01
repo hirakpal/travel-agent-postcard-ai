@@ -111,7 +111,7 @@ elif st.session_state.page == 'app':
     if 'last_result' in st.session_state:
         nodes = st.session_state.last_result['itinerary'].get('nodes', [])
         if nodes:
-            col1, col2 = st.columns([1, 1])
+            col1, col2 = st.columns([1, 2])
             with col1:
                 st.subheader("Curated Recommendations")
                 for node in nodes:
@@ -131,4 +131,4 @@ elif st.session_state.page == 'app':
                         popup=node['name'],
                         icon=folium.Icon(color="blue" if is_selected else "red")
                     ).add_to(m)
-                st_folium(m, width=700, height=500)
+                st_folium(m, width=900, height=600)
