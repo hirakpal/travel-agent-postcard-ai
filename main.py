@@ -1,75 +1,82 @@
 import streamlit as st
+import streamlit_authenticator as stauth
 import pandas as pd
+import sqlite3
+import secrets
+import smtplib
 import folium
 from streamlit_folium import st_folium
 from graph import app
+from email.message import EmailMessage
 
+# --- 1. Database & Authentication ---
+def get_users_from_db():
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, name TEXT, password TEXT, email TEXT)")
+    cursor.execute("SELECT username, name, password FROM users")
+    users = {row[0]: {'name': row[1], 'password': row[2]} for row in cursor.fetchall()}
+    conn.close()
+    return users
+
+# --- 2. UI Configuration ---
 st.set_page_config(layout="wide")
-st.title("Postcard AI Travel Concierge")
+if 'page' not in st.session_state: st.session_state.page = 'login'
 
-# --- Sidebar ---
-with st.sidebar:
-    st.header("Plan your trip")
-    dest = st.text_input("Destination")
-    t_date = st.date_input("Travel Date")
-    feed = st.text_area("Preferences")
-    if st.button("Generate Plan"):
-        st.session_state.last_result = app.invoke({
-            "itinerary": {"destination": dest, "nodes": []},
-            "travel_date": str(t_date),
-            "feedback": [feed]
-        })
-        st.session_state.selected_node = None 
-with st.sidebar:
-    st.header("Trip Configuration")
-    dest = st.text_input("Destination")
-    budget = st.slider("Budget Range (₹)", 10000, 500000, 50000)
+authenticator = stauth.Authenticate({"usernames": get_users_from_db()}, 'cookie', 'key', 30)
+
+def go_to(page): st.session_state.page = page; st.rerun()
+
+# --- 3. Page Logic ---
+if st.session_state.page == 'login':
+    authenticator.login()
+    if st.session_state.get("authentication_status"): go_to('app')
+    if st.button("Sign Up"): go_to('signup')
+
+elif st.session_state.page == 'app':
+    st.title("Postcard AI Travel Concierge")
     
-    mode = st.selectbox("How are you reaching?", ["Flight", "Bus", "Driving"])
-    
-    # Conditional Inputs
-    if mode == "Driving":
-        arr_date = st.date_input("Arrival Date")
-        arr_time = st.time_input("Arrival Time")
-        dep_date = st.date_input("Departure Date")
-    else:
-        t_date = st.date_input("Travel Date")
+    with st.sidebar:
+        st.header("Trip Configuration")
+        dest = st.text_input("Destination")
+        budget = st.slider("Budget Range (₹)", 10000, 500000, 50000)
+        mode = st.selectbox("How are you reaching?", ["Flight", "Bus", "Driving"])
         
-    if st.button("Curate 4 Trip Combinations"):
-        # Invoke agent with full context
-        st.session_state.last_result = app.invoke({
-            "itinerary": {"destination": dest, "nodes": []},
-            "logistics": {"mode": mode, "budget": budget},
-            "feedback": [f"Need 4 combinations for {mode} travel"]
-        })
-# --- Main UI ---
-if 'last_result' in st.session_state:
-    nodes = st.session_state.last_result['itinerary'].get('nodes', [])
-    if nodes:
-        # 1:2 layout gives the map more room
-        col1, col2 = st.columns([1, 2])
+        if mode == "Driving":
+            arr_date = st.date_input("Arrival Date")
+            dep_date = st.date_input("Departure Date")
+            logistics = {"mode": mode, "budget": budget, "arr": str(arr_date), "dep": str(dep_date)}
+        else:
+            t_date = st.date_input("Travel Date")
+            logistics = {"mode": mode, "budget": budget, "date": str(t_date)}
+            
+        feed = st.text_area("Preferences")
         
-        with col1:
-            st.subheader("Curated Recommendations")
-            for node in nodes:
-                status = "✅ Open" if node.get('is_open_on_date') else "❌ Closed"
-                if st.button(f"View {node.get('name')}", key=node.get('name')):
-                    st.session_state.selected_node = node
-                
-                with st.expander(f"{node.get('name')} {status}"):
-                    st.write(f"**Category:** {node.get('category')}")
-                    st.write(f"**Hours:** {node.get('weekday_hours')}")
-                    st.write(f"**Transport:** {node.get('transport_options')}")
-                    st.info(f"**Tip:** {node.get('transport_tip')}")
+        if st.button("Curate 4 Trip Combinations"):
+            st.session_state.last_result = app.invoke({
+                "itinerary": {"destination": dest},
+                "logistics": logistics,
+                "feedback": [feed]
+            })
+
+    if 'last_result' in st.session_state:
+        data = st.session_state.last_result.get('itinerary', {})
+        combinations = data.get('combinations', [])
         
-        with col2:
-            st.subheader("Itinerary Map")
-            m = folium.Map(location=[nodes[0]['lat'], nodes[0]['lng']], zoom_start=13)
-            for node in nodes:
-                is_selected = 'selected_node' in st.session_state and st.session_state.selected_node and st.session_state.selected_node['name'] == node['name']
-                folium.Marker(
-                    [node['lat'], node['lng']], 
-                    popup=node['name'],
-                    icon=folium.Icon(color="blue" if is_selected else "red")
-                ).add_to(m)
-            st_folium(m, width=1000, height=600)
+        if combinations:
+            tabs = st.tabs([c['name'] for c in combinations])
+            for i, tab in enumerate(tabs):
+                with tab:
+                    col1, col2 = st.columns([1, 1])
+                    with col1:
+                        st.subheader(f"Plan: {combinations[i]['name']}")
+                        for day in combinations[i].get('days', []):
+                            with st.expander(f"Day {day['day']}"):
+                                st.write(f"**Plan:** {day['plan']}")
+                                st.write(f"**Transport:** {day['transport']}")
+                    with col2:
+                        st.subheader("Itinerary Map")
+                        # Note: If your LLM returns nodes for combinations, render them here
+                        st.info("Interactive map updates based on selected combination.")
+        else:
+            st.warning("Generating plans...")
