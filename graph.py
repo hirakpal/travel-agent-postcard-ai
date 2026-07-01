@@ -1,56 +1,36 @@
-import json
 from typing import TypedDict, List, Annotated
 import operator
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 class AgentState(TypedDict):
-    itinerary: dict
-    logistics: dict
-    feedback: Annotated[List[str], operator.add]
+    messages: Annotated[List, operator.add]
+    is_complete: bool
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
-import json
-from langgraph.graph import StateGraph, END
-from langchain_core.messages import SystemMessage, HumanMessage
-
-def planning_node(state: AgentState):
-    # 1. Define the prompt
+def supervisor_node(state: AgentState):
+    # This node analyzes the conversation and decides the next step
     system_prompt = SystemMessage(content="""
-    You are an expert Travel Concierge. Return ONLY a valid JSON object:
-    {
-      "combinations": [{
-        "name": "Luxury Relaxed",
-        "days": [{"day": 1, "plan": "...", "insight": "...", "transport": "...", "lat": 0.0, "lon": 0.0}],
-        "travel_logistics": {"suggestion": "...", "estimated_cost": 0}
-      }]
-    }
+    You are a travel concierge. 
+    1. If the user hasn't provided Destination, Budget, Dates, and Preferences, ask ONE follow-up question.
+    2. If you have all details, generate a JSON itinerary with 4 combinations.
+    3. If generating the itinerary, prefix your response with "FINAL_PLAN:" followed by the JSON.
     """)
     
-    # 2. Build the messages
-    messages = [
-        system_prompt, 
-        HumanMessage(content=f"Plan trip to: {state['itinerary'].get('destination')} with logistics: {state.get('logistics')}")
-    ]
+    response = llm.invoke(state['messages'] + [system_prompt])
     
-    # 3. Call the LLM
-    response = llm.invoke(messages)
-    
-    # 4. Parse the response (THIS defines parsed_data)
-    try:
-        clean_json = response.content.replace("```json", "").replace("```", "").strip()
-        parsed_data = json.loads(clean_json)
-    except Exception:
-        # Fallback if LLM fails
-        parsed_data = {"combinations": []}
-    
-    # 5. Return the result AFTER the variable is defined
-    return {"itinerary": parsed_data}
+    if "FINAL_PLAN:" in response.content:
+        return {"messages": [response], "is_complete": True}
+    return {"messages": [response], "is_complete": False}
 
+# Build the Graph
 builder = StateGraph(AgentState)
-builder.add_node("planner", planning_node)
-builder.set_entry_point("planner")
-builder.add_edge("planner", END)
+builder.add_node("supervisor", supervisor_node)
+builder.set_entry_point("supervisor")
+
+# Conditional edge: If complete, go to END, otherwise loop back
+builder.add_conditional_edges("supervisor", lambda x: "end" if x['is_complete'] else "supervisor", {"end": END, "supervisor": "supervisor"})
+
 app = builder.compile()
