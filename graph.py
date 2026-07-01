@@ -16,9 +16,10 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
 def planning_node(state: AgentState):
     system_prompt = SystemMessage(content="""
-    You are the Postcard AI Travel Concierge. 
-    Return ONLY a valid JSON object with the following structure:
-    {"destination": "Name", "nodes": [{"name": "Place", "lat": 0.0, "lng": 0.0, "avg_visit_duration": 60, "category": "Sight"}]}
+    You are an expert travel guide. 
+    1. Identify real, specific tourist attractions in the destination.
+    2. Provide ACCURATE latitude and longitude for each specific place, not just the city center.
+    3. Return ONLY a JSON object: {"destination": "...", "nodes": [{"name": "...", "lat": ..., "lng": ..., "category": "..."}]}
     """)
     messages = [system_prompt, HumanMessage(content=f"Plan trip to: {state['itinerary']['destination']}. Feedback: {state.get('feedback', [''])[0]}")]
     
