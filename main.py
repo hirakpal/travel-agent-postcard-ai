@@ -18,7 +18,7 @@ authenticator = stauth.Authenticate(
 
 # --- 2. Page Configuration ---
 st.set_page_config(page_title="Postcard AI", layout="wide")
-name, authentication_status, username = authenticator.login('Login', 'main')
+name, authentication_status, username = authenticator.login(location='main')
 
 if authentication_status:
     st.title("Postcard AI: Collaborative Travel Orchestrator")
