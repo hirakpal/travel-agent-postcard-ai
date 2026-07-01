@@ -15,9 +15,13 @@ def get_users_from_db():
     
     # 2. Check if admin exists; if not, add it
     cursor.execute("SELECT count(*) FROM users WHERE username='admin'")
-    if cursor.fetchone()[0] == 0:
+if cursor.fetchone()[0] == 0:
         import streamlit_authenticator as stauth
-        hashed_password = stauth.Hasher(['admin123']).generate()[0]
+        # Corrected: Instantiate Hasher with no arguments
+        hasher = stauth.Hasher()
+        # Corrected: Pass the list of passwords to the .generate() method
+        hashed_password = hasher.generate(['admin123'])[0]
+        
         cursor.execute("INSERT INTO users VALUES (?, ?, ?)", 
                        ('admin', 'Administrator', hashed_password))
         conn.commit()
