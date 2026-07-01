@@ -1,5 +1,4 @@
 import json
-import time
 from typing import TypedDict, List, Annotated
 import operator
 from langgraph.graph import StateGraph, END
@@ -15,19 +14,25 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
 def planning_node(state: AgentState):
     system_prompt = SystemMessage(content="""
-    You are an expert AI Travel Concierge.
-    Return ONLY a JSON object:
+    You are an expert Travel Concierge. Return ONLY a JSON object:
     {
-      "combinations": [
-        {
-          "name": "Luxury Relaxed",
-          "days": [{"day": 1, "plan": "...", "transport": "...", "directions": "..."}],
-          "travel_logistics": {"suggestion": "...", "estimated_cost": 0}
-        }
-      ]
+      "combinations": [{
+        "name": "Luxury Relaxed",
+        "days": [{
+          "day": 1, 
+          "plan": "Visit Eiffel Tower", 
+          "insight": "Witness the city skyline from the summit; best viewed at sunset.", 
+          "transport": "Metro line 6", 
+          "lat": 48.8584, "lon": 2.2945
+        }],
+        "travel_logistics": {"suggestion": "Fly into CDG, take RER B train.", "estimated_cost": 5000}
+      }]
     }
-    Generate 4 distinct itinerary combinations based on the user's budget and travel mode.
+    1. Generate 4 plans. 
+    2. Add an 'insight' field for each place that captures what they will see and why it's worth it.
     """)
+    # ... (rest of parsing logic) ...
+    return {"itinerary": parsed_data}
     messages = [system_prompt, HumanMessage(content=f"Plan trip to: {state['itinerary'].get('destination')} with logistics: {state.get('logistics')}")]
     
     response = llm.invoke(messages)
