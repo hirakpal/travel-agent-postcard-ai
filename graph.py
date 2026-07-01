@@ -14,24 +14,30 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
 def planning_node(state: AgentState):
     system_prompt = SystemMessage(content="""
-    You are an expert Travel Concierge. Return ONLY a JSON object:
-    {
-      "combinations": [{
-        "name": "Luxury Relaxed",
-        "days": [{
-          "day": 1, 
-          "plan": "Visit Eiffel Tower", 
-          "insight": "Witness the city skyline from the summit; best viewed at sunset.", 
-          "transport": "Metro line 6", 
-          "lat": 48.8584, "lon": 2.2945
-        }],
-        "travel_logistics": {"suggestion": "Fly into CDG, take RER B train.", "estimated_cost": 5000}
-      }]
-    }
-    1. Generate 4 plans. 
-    2. Add an 'insight' field for each place that captures what they will see and why it's worth it.
+    You are an expert AI Travel Concierge. 
+    Return ONLY a valid JSON object with a "combinations" key containing 4 plans.
+    Include 'name', 'days' (with 'day', 'plan', 'insight', 'transport', 'lat', 'lon'), 
+    and 'travel_logistics'.
     """)
-    # ... (rest of parsing logic) ...
+    
+    # 1. Prepare the messages
+    messages = [
+        system_prompt, 
+        HumanMessage(content=f"Plan trip to: {state['itinerary']['destination']} with logistics: {state.get('logistics')}")
+    ]
+    
+    # 2. Invoke the LLM
+    response = llm.invoke(messages)
+    
+    # 3. Parse the data (This creates the 'parsed_data' variable)
+    try:
+        clean_json = response.content.replace("```json", "").replace("```", "").strip()
+        parsed_data = json.loads(clean_json)
+    except Exception as e:
+        # Fallback if JSON parsing fails
+        parsed_data = {"combinations": []}
+    
+    # 4. Return AFTER the variable is guaranteed to exist
     return {"itinerary": parsed_data}
     messages = [system_prompt, HumanMessage(content=f"Plan trip to: {state['itinerary'].get('destination')} with logistics: {state.get('logistics')}")]
     
