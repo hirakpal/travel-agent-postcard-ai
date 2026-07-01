@@ -32,13 +32,34 @@ def plan_itinerary(destination: str, feedback_history: List[str] = None):
     return structured_llm.invoke(prompt)
 
 # --- Nodes ---
-def planning_node(state: AgentState):
-    current_seq = state.get('last_update_seq', 0)
-    itinerary_obj = plan_itinerary(state['itinerary']['destination'], state.get('feedback'))
-    return {
-        "itinerary": itinerary_obj.model_dump(),
-        "last_update_seq": current_seq + 1
-    }
+from langchain_core.messages import SystemMessage, HumanMessage
+# Assuming you are using ChatOpenAI or ChatGoogleGenerativeAI
+# from langchain_openai import ChatOpenAI 
+
+def planning_node(state):
+    # The expert persona
+    system_prompt = SystemMessage(content="""
+    You are the Postcard AI Travel Concierge. You are an expert travel guide with 
+    experience in every corner of the world. 
+    
+    GOAL: Create highly personalized, efficient, and authentic itineraries.
+    
+    GUIDELINES:
+    1. Always optimize for the user's budget and preferences (walking tolerance, food style).
+    2. Provide local insights (authentic cafes, hidden gems) over tourist traps.
+    3. Safety is paramount: warn about local scams or risks.
+    4. OUTPUT FORMAT: Return a structured JSON with 'destination' and 'nodes' list.
+       Each node MUST include: name, lat, lng, avg_visit_duration, and category.
+    """)
+    
+    # Construct the message history
+    messages = [system_prompt, HumanMessage(content=f"Plan a trip to: {state['itinerary']['destination']}. Preferences: {state['feedback'][0]}")]
+    
+    # Invoke the model (Replace 'llm' with your actual model instance)
+    response = llm.invoke(messages)
+    
+    # ... process your JSON response ...
+    return {"itinerary": parsed_json_response}
 
 def reprice_node(state: AgentState):
     return {"last_check_timestamp": time.time()}
