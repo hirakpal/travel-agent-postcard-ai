@@ -15,15 +15,26 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
 def planning_node(state: AgentState):
     system_prompt = SystemMessage(content="""
-    You are an expert AI Travel Concierge. 
-    1. Analyze the user's budget and travel mode.
-    2. Generate 4 distinct day-wise itinerary combinations (e.g., 'Luxury Relaxed', 'Budget Adventure', 'Cultural Deep-Dive', 'Family Friendly').
-    3. Include for each combination: 
-       - Day-wise plan with directions.
-       - Optimized transport options between nodes.
-       - If Flight/Bus, suggest time-matched options.
-       - If Driving, account for arrival/departure times.
-    """)
+    You are an expert AI Travel Concierge.
+    Return ONLY a JSON object with this exact structure:
+    {
+      "combinations": [
+        {
+          "name": "Luxury Relaxed",
+          "days": [
+            {"day": 1, "plan": "...", "transport": "...", "directions": "..."},
+            ...
+          ],
+          "travel_logistics": {"suggestion": "...", "estimated_cost": 0}
+        }
+      ]
+    }
+    1. Generate 4 distinct combinations (e.g., Luxury, Budget, Adventure, Cultural).
+    2. Incorporate budget and travel mode constraints provided by the user.
+    3. If driving, align plans with arrival/departure times. 
+    4. If flight/bus, suggest specific time-matched transit options.
+    No conversational filler. Only valid JSON.
+""")
     messages = [
         system_prompt, 
         HumanMessage(content=f"Plan trip to: {state['itinerary']['destination']} on {state.get('travel_date')}. Feedback: {state.get('feedback', [''])[0]}")
