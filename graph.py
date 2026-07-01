@@ -20,7 +20,9 @@ def planning_node(state: AgentState):
     - name, lat, lng, category, avg_visit_duration
     - "weekday_hours": "09:00-18:00"
     - "weekend_hours": "10:00-20:00"
-    - "is_open_on_date": boolean (Check if the location is open on the user's travel date)
+    - "is_open_on_date": boolean
+    - "transport_options": "e.g., Metro line Blue, Bus 402"
+    - "transport_tip": "e.g., Metro is fastest"
     Structure: {"destination": "Name", "nodes": [...]}
     """)
     
