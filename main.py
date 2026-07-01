@@ -3,7 +3,7 @@ import streamlit_authenticator as stauth
 import pandas as pd
 import yaml
 from yaml.loader import SafeLoader
-from graph import app  # Ensure your LangGraph 'app' is imported from graph.py
+from graph import app  # Imports your compiled LangGraph
 
 # --- 1. Authentication Setup ---
 with open('config.yaml') as file:
@@ -18,17 +18,20 @@ authenticator = stauth.Authenticate(
 
 # --- 2. Page Configuration ---
 st.set_page_config(page_title="Postcard AI", layout="wide")
-name, authentication_status, username = authenticator.login(location='main')
 
-if authentication_status:
+# --- 3. Login Logic (The Corrected Pattern) ---
+# This method updates st.session_state automatically
+authenticator.login()
+
+if st.session_state["authentication_status"]:
     st.title("Postcard AI: Collaborative Travel Orchestrator")
-    st.sidebar.write(f"Logged in as: *{username}*")
+    st.sidebar.write(f"Logged in as: *{st.session_state['username']}*")
     authenticator.logout('Logout', 'sidebar')
 
-    # Initialize session state for concurrency
+    # --- Initialize Concurrency ---
     if 'seq' not in st.session_state: st.session_state.seq = 0
 
-    # Sidebar Inputs
+    # --- UI Logic ---
     with st.sidebar:
         destination = st.text_input("Destination", "Goa")
         feedback = st.text_area("Preferences", "Sunset cafes, beach hotels")
@@ -38,16 +41,15 @@ if authentication_status:
                 "itinerary": {"destination": destination, "nodes": []},
                 "last_check_timestamp": 0,
                 "last_update_seq": st.session_state.seq,
-                "feedback": [feedback, f"Updated by {username}"]
+                "feedback": [feedback, f"Updated by {st.session_state['username']}"]
             }
             with st.spinner("Orchestrating state..."):
                 st.session_state.last_result = app.invoke(initial_state)
 
-    # Output Display
+    # --- Output Display ---
     if 'last_result' in st.session_state:
         res = st.session_state.last_result
         st.success(f"Latest Plan Sequence: {res.get('last_update_seq')}")
-        
         col1, col2 = st.columns([1, 1])
         with col1:
             st.write(f"### {res['itinerary']['destination']}")
@@ -55,9 +57,9 @@ if authentication_status:
                 st.write(f"- {node['name']}")
         with col2:
             if res['itinerary'].get('nodes'):
-                st.map(pd.DataFrame(res['itinerary']['nodes']))
+                st.map(pd.DataFrame(res['itinerary'].get('nodes')))
 
-elif authentication_status == False:
+elif st.session_state["authentication_status"] is False:
     st.error('Username/password is incorrect')
-elif authentication_status == None:
+elif st.session_state["authentication_status"] is None:
     st.warning('Please enter your credentials to access the planner.')
