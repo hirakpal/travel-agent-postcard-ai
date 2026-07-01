@@ -75,18 +75,25 @@ elif st.session_state.page == 'recovery':
 
 elif st.session_state.page == 'app':
     st.title("Postcard AI Travel Concierge")
-    if st.sidebar.button("Logout"): st.session_state.authentication_status = None; go_to('login')
-    with st.sidebar:
-        dest = st.text_input("Destination")
-        feed = st.text_area("Preferences")
-        if st.button("Generate Plan"):
-            st.session_state.seq = st.session_state.get('seq', 0) + 1
-            st.session_state.last_result = app.invoke({
-                "itinerary": {"destination": dest, "nodes": []},
-                "last_update_seq": st.session_state.seq,
-                "last_check_timestamp": 0.0,
-                "feedback": [feed]
-            })
+    # ... logout and sidebar code ...
+
+    if 'last_result' in st.session_state:
+        nodes = st.session_state.last_result['itinerary'].get('nodes', [])
+        if nodes:
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                st.subheader("Curated Recommendations")
+                for node in nodes:
+                    with st.expander(f"{node['name']} ({node['category']})"):
+                        st.write(f"Estimated time: {node.get('avg_visit_duration', 60)} mins")
+                        # You can add more fields here as the AI adds them
+            
+            with col2:
+                st.subheader("Itinerary Map")
+                df = pd.DataFrame(nodes)
+                if 'lng' in df.columns: df = df.rename(columns={'lng': 'lon'})
+                st.map(df)
     if 'last_result' in st.session_state:
         nodes = st.session_state.last_result['itinerary'].get('nodes', [])
         if nodes:
