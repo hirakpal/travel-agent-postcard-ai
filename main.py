@@ -20,7 +20,28 @@ with st.sidebar:
             "feedback": [feed]
         })
         st.session_state.selected_node = None 
-
+with st.sidebar:
+    st.header("Trip Configuration")
+    dest = st.text_input("Destination")
+    budget = st.slider("Budget Range (₹)", 10000, 500000, 50000)
+    
+    mode = st.selectbox("How are you reaching?", ["Flight", "Bus", "Driving"])
+    
+    # Conditional Inputs
+    if mode == "Driving":
+        arr_date = st.date_input("Arrival Date")
+        arr_time = st.time_input("Arrival Time")
+        dep_date = st.date_input("Departure Date")
+    else:
+        t_date = st.date_input("Travel Date")
+        
+    if st.button("Curate 4 Trip Combinations"):
+        # Invoke agent with full context
+        st.session_state.last_result = app.invoke({
+            "itinerary": {"destination": dest, "nodes": []},
+            "logistics": {"mode": mode, "budget": budget},
+            "feedback": [f"Need 4 combinations for {mode} travel"]
+        })
 # --- Main UI ---
 if 'last_result' in st.session_state:
     nodes = st.session_state.last_result['itinerary'].get('nodes', [])
