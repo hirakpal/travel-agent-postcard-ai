@@ -4,8 +4,10 @@ import pandas as pd
 import sqlite3
 import secrets
 import smtplib
+import json
 from email.message import EmailMessage
 from graph import app
+from langchain_core.messages import SystemMessage, HumanMessage
 
 # --- 1. Database & Schema Management ---
 def get_users_from_db():
@@ -50,7 +52,7 @@ authenticator = stauth.Authenticate({"usernames": get_users_from_db()}, 'cookie'
 
 def go_to(page): st.session_state.page = page; st.rerun()
 
-# --- 4. Main UI Logic ---
+# --- 4. UI Logic ---
 if st.session_state.page == 'login':
     authenticator.login()
     if st.session_state.get("authentication_status"): go_to('app')
@@ -91,7 +93,7 @@ elif st.session_state.page == 'recovery':
             conn.execute("UPDATE users SET password=? WHERE username=?", 
                          (stauth.Hasher().hash(new_p), st.session_state.recovery_tokens[t_in]))
             conn.commit(); conn.close()
-            del st.session_state.recovery_tokens[t_in] # Token revocation
+            del st.session_state.recovery_tokens[t_in]
             st.success("Success! Password updated.")
         else: st.error("Invalid token.")
     if st.button("Back to Login"): go_to('login')
@@ -110,5 +112,10 @@ elif st.session_state.page == 'app':
                 "last_check_timestamp": 0.0,
                 "feedback": [feed, f"Edit by {st.session_state.get('username')}"]
             })
+    
     if 'last_result' in st.session_state:
-        st.map(pd.DataFrame(st.session_state.last_result['itinerary'].get('nodes')))
+        nodes = st.session_state.last_result['itinerary'].get('nodes', [])
+        if nodes:
+            df = pd.DataFrame(nodes)
+            if 'lng' in df.columns: df = df.rename(columns={'lng': 'lon'})
+            if 'lat' in df.columns: st.map(df)
