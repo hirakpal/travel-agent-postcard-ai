@@ -8,27 +8,33 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 class AgentState(TypedDict):
     itinerary: dict
-    last_check_timestamp: float
-    last_update_seq: int
+    travel_date: str
     feedback: Annotated[List[str], operator.add]
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
 def planning_node(state: AgentState):
     system_prompt = SystemMessage(content="""
-    You are an expert travel guide. 
-    1. Identify real, specific tourist attractions in the destination.
-    2. Provide ACCURATE latitude and longitude for each specific place, not just the city center.
-    3. Return ONLY a JSON object: {"destination": "...", "nodes": [{"name": "...", "lat": ..., "lng": ..., "category": "..."}]}
+    You are an expert AI Travel Concierge. 
+    Return ONLY a valid JSON object. For each place, include:
+    - name, lat, lng, category, avg_visit_duration
+    - "weekday_hours": "09:00-18:00"
+    - "weekend_hours": "10:00-20:00"
+    - "is_open_on_date": boolean (Check if the location is open on the user's travel date)
+    Structure: {"destination": "Name", "nodes": [...]}
     """)
-    messages = [system_prompt, HumanMessage(content=f"Plan trip to: {state['itinerary']['destination']}. Feedback: {state.get('feedback', [''])[0]}")]
+    
+    messages = [
+        system_prompt, 
+        HumanMessage(content=f"Plan trip to: {state['itinerary']['destination']} on {state.get('travel_date')}. Feedback: {state.get('feedback', [''])[0]}")
+    ]
     
     response = llm.invoke(messages)
     try:
         parsed_data = json.loads(response.content.replace("```json", "").replace("```", "").strip())
     except:
         parsed_data = {"destination": state['itinerary']['destination'], "nodes": []}
-    return {"itinerary": parsed_data, "last_check_timestamp": time.time()}
+    return {"itinerary": parsed_data}
 
 builder = StateGraph(AgentState)
 builder.add_node("planner", planning_node)
