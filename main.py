@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit_authenticator as stauth
 import pandas as pd
 import sqlite3
-import uuid
+import secrets
 import smtplib
 from email.message import EmailMessage
 from graph import app
@@ -24,16 +24,14 @@ def get_users_from_db():
     conn.close()
     return users
 
-# --- 2. Email Helper ---
-def send_recovery_email(recipient, token):
+# --- 2. Simplified Token Email Helper ---
+def send_token_email(recipient, token):
     try:
         sender = st.secrets["EMAIL_USER"]
         password = st.secrets["EMAIL_PASS"]
-        # Use your exact deployed URL
-        reset_url = f"https://postcard-ai.streamlit.app/?token={token}"
         msg = EmailMessage()
-        msg.set_content(f"Reset your password here: {reset_url}")
-        msg['Subject'] = 'Account Recovery'
+        msg.set_content(f"Your 8-character recovery token is: {token}\n\nEnter this on the Account Recovery page.")
+        msg['Subject'] = 'Your Recovery Token'
         msg['From'] = sender
         msg['To'] = recipient
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
@@ -41,24 +39,18 @@ def send_recovery_email(recipient, token):
             s.send_message(msg)
         return True
     except Exception as e:
-        st.error(f"Email error: {e}")
+        st.error(f"Email failed: {e}")
         return False
 
 # --- 3. App State & Routing ---
 if 'recovery_tokens' not in st.session_state: st.session_state.recovery_tokens = {}
 if 'page' not in st.session_state: st.session_state.page = 'login'
 
-# Capture Token from URL automatically
-query_params = st.query_params
-if "token" in query_params:
-    st.session_state.current_token = query_params["token"]
-    st.session_state.page = 'recovery'
-
 authenticator = stauth.Authenticate({"usernames": get_users_from_db()}, 'cookie', 'key', 30)
 
 def go_to(page): st.session_state.page = page; st.rerun()
 
-# --- 4. Main UI Logic ---
+# --- 4. UI Logic ---
 if st.session_state.page == 'login':
     authenticator.login()
     if st.session_state.get("authentication_status"): go_to('app')
@@ -85,13 +77,13 @@ elif st.session_state.page == 'recovery':
         conn = sqlite3.connect('users.db')
         user = conn.execute("SELECT username FROM users WHERE email=?", (email_in,)).fetchone()
         if user:
-            token = str(uuid.uuid4())
+            token = secrets.token_hex(4).upper() # 8-character alphanumeric
             st.session_state.recovery_tokens[token] = user[0]
-            if send_recovery_email(email_in, token): st.success("Token sent!")
+            if send_token_email(email_in, token): st.success("Token sent to email!")
         else: st.error("Email not found.")
         conn.close()
     
-    t_in = st.session_state.get('current_token', st.text_input("Enter Token"))
+    t_in = st.text_input("Enter 8-character Token")
     new_p = st.text_input("New Password", type="password")
     if st.button("Update Password"):
         if t_in in st.session_state.recovery_tokens:
@@ -104,18 +96,5 @@ elif st.session_state.page == 'recovery':
     if st.button("Back to Login"): go_to('login')
 
 elif st.session_state.page == 'app':
-    st.title("Postcard AI")
+    # ... [Your existing App logic] ...
     if st.sidebar.button("Logout"): st.session_state.authentication_status = None; go_to('login')
-    
-    with st.sidebar:
-        dest, feed = st.text_input("Destination"), st.text_area("Preferences")
-        if st.button("Generate Plan"):
-            st.session_state.seq = st.session_state.get('seq', 0) + 1
-            st.session_state.last_result = app.invoke({
-                "itinerary": {"destination": dest, "nodes": []},
-                "last_update_seq": st.session_state.seq,
-                "last_check_timestamp": 0.0,
-                "feedback": [feed, f"Edit by {st.session_state.get('username')}"]
-            })
-    if 'last_result' in st.session_state:
-        st.map(pd.DataFrame(st.session_state.last_result['itinerary'].get('nodes')))
