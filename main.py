@@ -13,7 +13,7 @@ from email.message import EmailMessage
 def get_users_from_db():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, name TEXT, password TEXT, email TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, name TEXT, password TEXT, email TEXT, avatar TEXT)")
     cursor.execute("SELECT username, name, password FROM users")
     users = {row[0]: {'name': row[1], 'password': row[2]} for row in cursor.fetchall()}
     conn.close()
