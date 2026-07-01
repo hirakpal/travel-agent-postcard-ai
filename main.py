@@ -8,6 +8,20 @@ from graph import app  # Your compiled LangGraph
 def get_users_from_db():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
+    
+    # 1. Create table if it doesn't exist
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
+                      (username TEXT PRIMARY KEY, name TEXT, password TEXT)''')
+    
+    # 2. Check if admin exists; if not, add it
+    cursor.execute("SELECT count(*) FROM users WHERE username='admin'")
+    if cursor.fetchone()[0] == 0:
+        import streamlit_authenticator as stauth
+        hashed_password = stauth.Hasher(['admin123']).generate()[0]
+        cursor.execute("INSERT INTO users VALUES (?, ?, ?)", 
+                       ('admin', 'Administrator', hashed_password))
+        conn.commit()
+        
     cursor.execute("SELECT username, name, password FROM users")
     users = {row[0]: {'name': row[1], 'password': row[2]} for row in cursor.fetchall()}
     conn.close()
