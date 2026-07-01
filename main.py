@@ -1,15 +1,13 @@
 import streamlit as st
 import streamlit_authenticator as stauth
-import pandas as pd
 import sqlite3
-import secrets
-import smtplib
 import folium
 from streamlit_folium import st_folium
 from graph import app
-from email.message import EmailMessage
 
-# --- 1. Database & Authentication ---
+st.set_page_config(layout="wide")
+
+# --- 1. Database & Auth ---
 def get_users_from_db():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
@@ -19,64 +17,50 @@ def get_users_from_db():
     conn.close()
     return users
 
-# --- 2. UI Configuration ---
-st.set_page_config(layout="wide")
+# --- 2. Logic ---
 if 'page' not in st.session_state: st.session_state.page = 'login'
-
 authenticator = stauth.Authenticate({"usernames": get_users_from_db()}, 'cookie', 'key', 30)
 
-def go_to(page): st.session_state.page = page; st.rerun()
-
-# --- 3. Page Logic ---
 if st.session_state.page == 'login':
-    authenticator.login()
-    if st.session_state.get("authentication_status"): go_to('app')
-    if st.button("Sign Up"): go_to('signup')
+    if authenticator.login():
+        st.session_state.page = 'app'
+        st.rerun()
 
 elif st.session_state.page == 'app':
-    st.title("Postcard AI Travel Concierge")
-    
+    # --- Personalized Sidebar ---
+    name = st.session_state.get('name', 'Traveler')
     with st.sidebar:
+        st.title(f"Hello, {name}!")
+        avatar = st.radio("Pick your Avatar", ["👤", "✈️", "🌍", "📸"], horizontal=True)
+        st.markdown(f"## {avatar}")
+        
         st.header("Trip Configuration")
-        dest = st.text_input("Destination", key="destination_input")
-        budget = st.slider("Budget Range (₹)", 10000, 500000, 50000)
-        mode = st.selectbox("How are you reaching?", ["Flight", "Bus", "Driving"])
+        dest = st.text_input("Destination", key="dest_input")
+        budget = st.slider("Budget (₹)", 10000, 500000, 50000, key="budget_slider")
+        mode = st.selectbox("Mode", ["Flight", "Bus", "Driving"], key="mode_select")
         
-        if mode == "Driving":
-            arr_date = st.date_input("Arrival Date")
-            dep_date = st.date_input("Departure Date")
-            logistics = {"mode": mode, "budget": budget, "arr": str(arr_date), "dep": str(dep_date)}
-        else:
-            t_date = st.date_input("Travel Date")
-            logistics = {"mode": mode, "budget": budget, "date": str(t_date)}
-            
-        feed = st.text_area("Preferences")
-        
-        if st.button("Curate 4 Trip Combinations"):
+        if st.button("Curate 4 Combinations"):
             st.session_state.last_result = app.invoke({
                 "itinerary": {"destination": dest},
-                "logistics": logistics,
-                "feedback": [feed]
+                "logistics": {"mode": mode, "budget": budget}
             })
+        if st.button("Logout"): st.session_state.page = 'login'; st.rerun()
 
+    # --- Personalized Dashboard ---
     if 'last_result' in st.session_state:
-        data = st.session_state.last_result.get('itinerary', {})
-        combinations = data.get('combinations', [])
-        
+        combinations = st.session_state.last_result['itinerary'].get('combinations', [])
         if combinations:
             tabs = st.tabs([c['name'] for c in combinations])
             for i, tab in enumerate(tabs):
                 with tab:
-                    col1, col2 = st.columns([1, 1])
+                    col1, col2 = st.columns([1, 2])
                     with col1:
-                        st.subheader(f"Plan: {combinations[i]['name']}")
                         for day in combinations[i].get('days', []):
                             with st.expander(f"Day {day['day']}"):
                                 st.write(f"**Plan:** {day['plan']}")
                                 st.write(f"**Transport:** {day['transport']}")
                     with col2:
-                        st.subheader("Itinerary Map")
-                        # Note: If your LLM returns nodes for combinations, render them here
-                        st.info("Interactive map updates based on selected combination.")
+                        st.subheader("Interactive Logistics")
+                        st.info(f"Logistics Suggestion: {combinations[i]['travel_logistics']['suggestion']}")
         else:
-            st.warning("Generating plans...")
+            st.warning("Generating your travel combinations...")
