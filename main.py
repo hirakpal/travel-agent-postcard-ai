@@ -24,38 +24,41 @@ def get_users_from_db():
     conn.close()
     return users
 
-# --- 2. Email Helper with Fail-Safe ---
+# --- 2. Email Helper ---
 def send_recovery_email(recipient, token):
     try:
         sender = st.secrets["EMAIL_USER"]
         password = st.secrets["EMAIL_PASS"]
-    except KeyError:
-        st.error("Email service configuration missing.")
+        # Use your exact deployed URL
+        reset_url = f"https://postcard-ai.streamlit.app/?token={token}"
+        msg = EmailMessage()
+        msg.set_content(f"Reset your password here: {reset_url}")
+        msg['Subject'] = 'Account Recovery'
+        msg['From'] = sender
+        msg['To'] = recipient
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
+            s.login(sender, password)
+            s.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Email error: {e}")
         return False
-    
-    # Construct the reset URL using the current host
-    # We use a placeholder URL; in production, replace with your actual domain
-    reset_url = f"https://travel-agent-postcard-ai.streamlit.app/?token={token}"
-    
-    msg = EmailMessage()
-    msg.set_content(f"Reset your password here: {reset_url}")
-    msg['Subject'] = 'Account Recovery'
-    msg['From'] = sender
-    msg['To'] = recipient
-    
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
-        s.login(sender, password)
-        s.send_message(msg)
-    return True
 
-# --- 3. UI Initialization ---
+# --- 3. App State & Routing ---
 if 'recovery_tokens' not in st.session_state: st.session_state.recovery_tokens = {}
 if 'page' not in st.session_state: st.session_state.page = 'login'
+
+# Capture Token from URL automatically
+query_params = st.query_params
+if "token" in query_params:
+    st.session_state.current_token = query_params["token"]
+    st.session_state.page = 'recovery'
+
 authenticator = stauth.Authenticate({"usernames": get_users_from_db()}, 'cookie', 'key', 30)
 
 def go_to(page): st.session_state.page = page; st.rerun()
 
-# --- 4. Page Logic ---
+# --- 4. Main UI Logic ---
 if st.session_state.page == 'login':
     authenticator.login()
     if st.session_state.get("authentication_status"): go_to('app')
@@ -88,14 +91,15 @@ elif st.session_state.page == 'recovery':
         else: st.error("Email not found.")
         conn.close()
     
-    t_in, new_p = st.text_input("Enter Token"), st.text_input("New Password", type="password")
+    t_in = st.session_state.get('current_token', st.text_input("Enter Token"))
+    new_p = st.text_input("New Password", type="password")
     if st.button("Update Password"):
         if t_in in st.session_state.recovery_tokens:
             conn = sqlite3.connect('users.db')
             conn.execute("UPDATE users SET password=? WHERE username=?", 
                          (stauth.Hasher().hash(new_p), st.session_state.recovery_tokens[t_in]))
             conn.commit(); conn.close()
-            st.success("Success!")
+            st.success("Success! Return to Login.")
         else: st.error("Invalid token.")
     if st.button("Back to Login"): go_to('login')
 
