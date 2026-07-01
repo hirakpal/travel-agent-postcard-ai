@@ -36,30 +36,43 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # Assuming you are using ChatOpenAI or ChatGoogleGenerativeAI
 # from langchain_openai import ChatOpenAI 
 
+import json
+from langchain_core.messages import SystemMessage, HumanMessage
+
 def planning_node(state):
-    # The expert persona
     system_prompt = SystemMessage(content="""
-    You are the Postcard AI Travel Concierge. You are an expert travel guide with 
-    experience in every corner of the world. 
-    
-    GOAL: Create highly personalized, efficient, and authentic itineraries.
-    
-    GUIDELINES:
-    1. Always optimize for the user's budget and preferences (walking tolerance, food style).
-    2. Provide local insights (authentic cafes, hidden gems) over tourist traps.
-    3. Safety is paramount: warn about local scams or risks.
-    4. OUTPUT FORMAT: Return a structured JSON with 'destination' and 'nodes' list.
-       Each node MUST include: name, lat, lng, avg_visit_duration, and category.
+    You are the Postcard AI Travel Concierge. 
+    Return ONLY a valid JSON object with the following structure:
+    {
+        "destination": "Name of destination",
+        "nodes": [
+            {"name": "Place", "lat": 0.0, "lng": 0.0, "avg_visit_duration": 60, "category": "Sight"},
+            ...
+        ]
+    }
+    No conversational text. Just the JSON.
     """)
     
-    # Construct the message history
-    messages = [system_prompt, HumanMessage(content=f"Plan a trip to: {state['itinerary']['destination']}. Preferences: {state['feedback'][0]}")]
+    messages = [
+        system_prompt, 
+        HumanMessage(content=f"Plan a trip to: {state['itinerary']['destination']}. Preferences: {state['feedback'][0]}")
+    ]
     
-    # Invoke the model (Replace 'llm' with your actual model instance)
+    # 1. Get the raw text response from the LLM
     response = llm.invoke(messages)
+    raw_content = response.content # The actual text returned by LLM
     
-    # ... process your JSON response ...
-    return {"itinerary": parsed_json_response}
+    # 2. Clean and Parse the JSON
+    try:
+        # Remove markdown code blocks if the LLM included them
+        clean_json = raw_content.replace("```json", "").replace("```", "").strip()
+        parsed_data = json.loads(clean_json)
+    except json.JSONDecodeError:
+        # Fallback if the LLM fails to return valid JSON
+        parsed_data = {"destination": state['itinerary']['destination'], "nodes": []}
+    
+    # 3. Return the correctly structured state update
+    return {"itinerary": parsed_data}
 
 def reprice_node(state: AgentState):
     return {"last_check_timestamp": time.time()}
