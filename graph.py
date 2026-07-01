@@ -8,7 +8,12 @@ class AgentState(TypedDict):
     messages: Annotated[List, operator.add]
     is_complete: bool
 
-llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
+# Update your LLM initialization to include a retry strategy
+llm = ChatOpenAI(
+    model="gpt-4o", 
+    temperature=0.7,
+    max_retries=5  # This automatically retries on RateLimitError/API errors
+)
 
 def supervisor_node(state: AgentState):
     # This node analyzes the conversation and decides the next step
